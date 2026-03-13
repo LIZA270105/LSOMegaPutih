@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MegaPutih - Digital Attendance System</title>
+    
+    <!-- Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #0B090A;
+            --secondary: #660708;
+            --bg-body: #F5F5F5;
+            --surface: #FFFFFF;
+            --text-main: #2d3436;
+            --text-muted: #636e72;
+            --accent: #D3D3D3;
+            --radius: 12px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.08);
+            --transition: 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); min-height: 100vh; width: 100%; overflow-x: hidden; }
+        .hidden { display: none !important; }
+
+        /* Login Page */
+        #login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 20px;
+        }
+
+        /* Main Layout */
+        #app-container { display: flex; min-height: 100vh; }
+        #sidebar {
+            width: 260px; background: var(--primary); color: white;
+            position: fixed; height: 100vh; z-index: 1000;
+            transition: transform var(--transition); display: flex; flex-direction: column;
+        }
+        #main-content { flex: 1; margin-left: 260px; padding: 2rem; width: calc(100% - 260px); }
+
+        /* UI Elements */
+        .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .mobile-nav { display: none; background: var(--primary); color: white; padding: 12px 16px; position: sticky; top: 0; z-index: 900; justify-content: space-between; align-items: center; }
+        
+        .menu-item { padding: 12px 16px; color: rgba(255,255,255,0.7); cursor: pointer; display: flex; align-items: center; gap: 12px; border-radius: 8px; margin: 4px 12px; transition: 0.2s; }
+        .menu-item.active { background: rgba(255,255,255,0.1); color: white; border-left: 4px solid var(--secondary); }
+
+        /* Table Styles */
+        .table-container { overflow-x: auto; width: 100%; margin-top: 15px; border-radius: 8px; border: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; vertical-align: middle; }
+        
+        /* Badges & Images */
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+        .badge-success { background: #e6fffa; color: #2c7a7b; }
+        .badge-danger { background: #fff5f5; color: #c53030; }
+        .badge-warning { background: #fffaf0; color: #b7791f; }
+        .img-preview { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 2px solid #ddd; background: #eee; display: block; }
+
+        /* Modal */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: white; border-radius: 12px; width: 100%; max-width: 450px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+
+        /* Form Controls */
+        input, select, textarea { 
+            padding: 10px 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            font-size: 0.9rem;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .btn-action {
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1rem;
+            transition: 0.2s;
+        }
+        .btn-edit { color: #3498db; }
+        .btn-delete { color: #e74c3c; }
+        .btn-action:hover { opacity: 0.7; transform: scale(1.1); }
+
+        .profile-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 auto 15px;
+            display: block;
+            border: 3px solid var(--secondary);
+        }
+
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+            #main-content { margin-left: 0; width: 100%; padding: 1rem; }
+            .mobile-nav { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; display:none;" onclick="toggleSidebar()"></div>
+
+    <!-- Halaman Login -->
+    <section id="login-page">
+        <div class="card" style="width:100%; max-width:400px; text-align:center;">
+            <i class="fas fa-fingerprint" style="font-size:3rem; color:var(--secondary); margin-bottom:1rem;"></i>
+            <h2 style="margin-bottom:20px;">MegaPutih Attendance</h2>
+            
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <button id="btn-role-member" class="role-btn" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; cursor:pointer;" onclick="setRole('member')">Member</button>
+                <button id="btn-role-admin" class="role-btn" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; cursor:pointer;" onclick="setRole('admin')">Admin</button>
+            </div>
+
+            <form id="login-form">
+                <div id="login-nim-group" style="text-align:left; margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; font-weight:700;">ID / NIM</label>
+                    <input type="text" id="login-nim">
+                </div>
+                <div style="text-align:left; margin-bottom:1.5rem;">
+                    <label style="font-size:0.8rem; font-weight:700;">Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">SIGN IN</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Kontainer Aplikasi -->
+    <div id="app-container" class="hidden">
+        <header class="mobile-nav">
+            <span style="font-weight:800;">MEGAPUTIH</span>
+            <i class="fas fa-bars" onclick="toggleSidebar()"></i>
+        </header>
+
+        <aside id="sidebar">
+            <div style="padding:1.5rem; font-weight:800; border-bottom:1px solid rgba(255,255,255,0.1);">LSO MEGAPUTIH</div>
+            <div style="padding:1.5rem; display:flex; align-items:center; gap:12px;">
+                <img id="user-avatar" src="" style="width:40px; height:40px; border-radius:50%; background:#fff; object-fit:cover; border: 2px solid var(--secondary);">
+                <div>
+                    <p id="user-name" style="font-weight:700; font-size:0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">Username</p>
+                    <p id="user-role-label" style="font-size:0.7rem; opacity:0.6;">Role</p>
+                </div>
+            </div>
+            <nav style="flex:1;">
+                <div id="admin-menu" class="hidden">
+                    <div class="menu-item" onclick="showPage('admin-dashboard')"><i class="fas fa-home"></i> Dashboard</div>
+                    <div class="menu-item" onclick="showPage('admin-attendance')"><i class="fas fa-calendar-check"></i> Attendance Logs</div>
+                    <div class="menu-item" onclick="showPage('admin-reports')"><i class="fas fa-file-invoice"></i> Brief Reports</div>
+                    <div class="menu-item" onclick="showPage('admin-members')"><i class="fas fa-users"></i> Manage Members</div>
+                </div>
+                <div id="member-menu" class="hidden">
+                    <div class="menu-item" onclick="showPage('member-absen')"><i class="fas fa-clock"></i> Check In/Out</div>
+                    <div class="menu-item" onclick="showPage('member-history')"><i class="fas fa-history"></i> My Records</div>
+                </div>
+                <div class="menu-item" onclick="openSettings()"><i class="fas fa-cog"></i> Settings</div>
+            </nav>
+            <div class="menu-item" onclick="logout()" style="margin-bottom:2rem; color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Logout</div>
+        </aside>
+
+        <main id="main-content">
+            <!-- Dashboard Admin -->
+            <div id="page-admin-dashboard" class="page hidden">
+                <h2 style="margin-bottom:20px;">Statistik Organisasi</h2>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px;">
+                    <div class="card" style="text-align:center;">
+                        <p style="color:var(--text-muted);">Total Anggota</p>
+                        <h1 id="stat-members">0</h1>
+                    </div>
+                    <div class="card" style="text-align:center;">
+                        <p style="color:var(--text-muted);">Hadir Hari Ini</p>
+                        <h1 id="stat-today" style="color:green;">0</h1>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Absensi Admin -->
+            <div id="page-admin-attendance" class="page hidden">
+                <div style="margin-bottom:20px;">
+                    <h2>Data Absensi Detail</h2>
+                    <p style="font-size:0.85rem; color:var(--text-muted);">Admin dapat mengedit atau menghapus data masuk member di sini.</p>
+                </div>
+                <div class="card">
+                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:15px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-size:0.8rem; font-weight:bold;">Tanggal:</label>
+                            <input type="date" id="attendance-filter-date" style="width: auto;" onchange="renderAttendance()">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-size:0.8rem; font-weight:bold;">Dept:</label>
+                            <select id="attendance-filter-dept" style="width: auto;" onchange="renderAttendance()">
+                                <option value="">Semua Departemen</option>
+                            </select>
+                        </div>
+                        <button onclick="resetFilters()" style="padding:8px 12px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:0.8rem;">Reset Filter</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Foto</th>
+                                    <th>Nama</th>
+                                    <th>ID/NIM</th>
+                                    <th>Dept</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Status</th>
+                                    <th>Catatan</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Laporan Singkat Admin -->
+            <div id="page-admin-reports" class="page hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <div>
+                        <h2>Ringkasan Laporan Absensi</h2>
+                        <p style="font-size:0.85rem; color:var(--text-muted);">Versi ringkas untuk arsip dan ekspor.</p>
+                    </div>
+                    <button onclick="exportExcel()" style="padding:8px 16px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;"><i class="fas fa-file-excel"></i> Ekspor ke Excel</button>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table id="table-to-export">
+                            <thead>
+                                <tr>
+                                    <th>ID/NIM</th>
+                                    <th>Nama</th>
+                                    <th>Dept</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Durasi</th>
+                                    <th>Status</th>
+                                    <th>Skor (%)</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kelola Anggota -->
+            <div id="page-admin-members" class="page hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2>Daftar Anggota Aktif</h2>
+                    <button onclick="openModal('member-modal')" style="padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer;">+ Tambah Anggota</button>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID/NIM</th>
+                                    <th>Nama</th>
+                                    <th>Departemen</th>
+                                    <th>Jabatan</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="member-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Absen Member -->
+            <div id="page-member-absen" class="page hidden">
+                <div class="card" style="max-width:400px; margin:0 auto; text-align:center;">
+                    <h2 id="live-clock" style="font-size:2.5rem; margin-bottom:5px;">00:00:00</h2>
+                    <p id="live-date" style="color:var(--text-muted); margin-bottom:30px;"></p>
+                    
+                    <div style="text-align:left; margin-bottom:1rem;">
+                        <label style="font-weight:700; font-size:0.85rem;">Bukti Foto (Selfie)</label>
+                        <input type="file" id="absen-photo" capture="user" accept="image/*">
+                    </div>
+
+                    <div style="text-align:left; margin-bottom:1.5rem;">
+                        <label style="font-weight:700; font-size:0.85rem;">Catatan (Opsional)</label>
+                        <textarea id="absen-note" style="height:60px;" placeholder="Apa yang Anda kerjakan hari ini?"></textarea>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <button onclick="handleAbsen('IN')" style="padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">CHECK IN</button>
+                        <button onclick="handleAbsen('OUT')" style="padding:12px; background:var(--secondary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">CHECK OUT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Riwayat Member -->
+            <div id="page-member-history" class="page hidden">
+                <h2>Riwayat Absensi Saya</h2>
+                <div class="card" id="history-container">
+                    <div id="history-list">Memuat riwayat...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Settings (Avatar & Password) -->
+    <div id="settings-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px; text-align: center;">Pengaturan Profil</h3>
+            <form id="settings-form">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img id="settings-avatar-preview" src="" class="profile-preview">
+                    <label style="font-size:0.75rem; color:var(--secondary); cursor:pointer; font-weight:bold;">
+                        Ganti Foto Profil
+                        <input type="file" id="settings-avatar-input" accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                    </label>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Password Lama</label>
+                    <input type="password" id="set-old-pass" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Password Baru</label>
+                    <input type="password" id="set-new-pass" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Konfirmasi Password Baru</label>
+                    <input type="password" id="set-confirm-pass" required>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeModal('settings-modal')" style="flex:1; padding:10px; background:#eee; border:none; border-radius:6px; cursor:pointer;">Batal</button>
+                    <button type="submit" style="flex:1; padding:10px; background:var(--primary); color:white; border:none; border-radius:6px; cursor:pointer;">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Edit Absensi (Admin Only) -->
+    <div id="attendance-edit-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px;">Edit Data Absensi</h3>
+            <form id="attendance-edit-form">
+                <input type="hidden" id="edit-original-nim">
+                <input type="hidden" id="edit-original-date">
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Nama Anggota</label>
+                    <input type="text" id="edit-nama" readonly style="background:#f9f9f9;">
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Waktu Check In</label>
+                    <input type="datetime-local" id="edit-checkin" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Waktu Check Out</label>
+                    <input type="datetime-local" id="edit-checkout">
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Catatan</label>
+                    <textarea id="edit-note" style="height:80px;"></textarea>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeModal('attendance-edit-modal')" style="flex:1; padding:10px; background:#eee; border:none; border-radius:6px; cursor:pointer;">Batal</button>
+                    <button type="submit" style="flex:1; padding:10px; background:var(--primary); color:white; border:none; border-radius:6px; cursor:pointer;">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Anggota -->
+    <div id="member-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px;">Registrasi Anggota Baru</h3>
+            <form id="member-form">
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">ID / NIM</label>
+                    <input type="text" id="m-nim" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Nama Lengkap</label>
+                    <input type="text" id="m-nama" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Departemen</label>
+                    <input type="text" id="m-dept" placeholder="cth: Media, IT, HR" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Jabatan</label>
+                    <input type="text" id="m-jabatan" placeholder="cth: Staf, Ketua" required>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeModal('member-modal')" style="flex:1; padding:10px; background:#eee; border:none; border-radius:6px; cursor:pointer;">Batal</button>
+                    <button type="submit" style="flex:1; padding:10px; background:var(--primary); color:white; border:none; border-radius:6px; cursor:pointer;">Simpan Anggota</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox Foto -->
+    <div id="photo-modal" class="modal-backdrop" onclick="closeModal('photo-modal')">
+        <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+            <img id="modal-img-full" src="" style="max-width:90%; max-height:85%; border-radius:8px; border:5px solid white; box-shadow:0 0 50px rgba(0,0,0,0.5);">
+        </div>
+    </div>
+
+    <script>
+        // Manajemen State
+        let state = {
+            activeRole: 'member',
+            user: null,
+            adminProfile: JSON.parse(localStorage.getItem('mp_admin_profile')) || { password: 'admin123', avatar: null },
+            members: JSON.parse(localStorage.getItem('mp_members')) || [
+                { nim: '12345', nama: 'Budi Santoso', dept: 'IT Support', jabatan: 'Ketua', password: 'member123', avatar: null },
+                { nim: '67890', nama: 'Siti Aminah', dept: 'Sekretariat', jabatan: 'Sekretaris', password: 'member123', avatar: null }
+            ],
+            attendance: JSON.parse(localStorage.getItem('mp_attendance')) || []
+        };
+
+        window.onload = () => {
+            const today = new Date().toLocaleDateString('en-CA');
+            const filterInput = document.getElementById('attendance-filter-date');
+            if(filterInput) filterInput.value = today;
+            updateDepartmentDropdown();
+        };
+
+        const saveToLocal = () => {
+            localStorage.setItem('mp_members', JSON.stringify(state.members));
+            localStorage.setItem('mp_attendance', JSON.stringify(state.attendance));
+            localStorage.setItem('mp_admin_profile', JSON.stringify(state.adminProfile));
+            updateDepartmentDropdown();
+        };
+
+        // UI Helpers
+        function setRole(role) {
+            state.activeRole = role;
+            document.querySelectorAll('.role-btn').forEach(b => b.style.background = '#fff');
+            document.getElementById('btn-role-' + role).style.background = '#f0f0f0';
+            document.getElementById('login-nim-group').style.display = role === 'admin' ? 'none' : 'block';
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const isOpen = sidebar.classList.toggle('open');
+            overlay.style.display = isOpen ? 'block' : 'none';
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById('page-' + pageId).classList.remove('hidden');
+            
+            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            const activeMenu = Array.from(document.querySelectorAll('.menu-item')).find(m => m.getAttribute('onclick')?.includes(pageId));
+            if(activeMenu) activeMenu.classList.add('active');
+
+            if(pageId === 'admin-attendance') { updateDepartmentDropdown(); renderAttendance(); }
+            if(pageId === 'admin-reports') renderReports();
+            if(pageId === 'admin-members') renderMemberList();
+            if(pageId === 'admin-dashboard') updateStats();
+            if(pageId === 'member-history') renderMemberHistory();
+            
+            if(window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                if(sidebar.classList.contains('open')) toggleSidebar();
+            }
+        }
+
+        // --- FITUR SETTINGS (Ganti Password & Avatar) ---
+        function openSettings() {
+            const currentAvatar = state.user.role === 'admin' ? state.adminProfile.avatar : state.user.avatar;
+            document.getElementById('settings-avatar-preview').src = currentAvatar || `https://ui-avatars.com/api/?name=${state.user.nama}&background=660708&color=fff`;
+            document.getElementById('settings-form').reset();
+            openModal('settings-modal');
+        }
+
+        function previewAvatar(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('settings-avatar-preview').src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        document.getElementById('settings-form').onsubmit = (e) => {
+            e.preventDefault();
+            const oldPass = document.getElementById('set-old-pass').value;
+            const newPass = document.getElementById('set-new-pass').value;
+            const confirmPass = document.getElementById('set-confirm-pass').value;
+            const avatarInput = document.getElementById('settings-avatar-input');
+
+            // Validasi Password
+            const currentPass = state.user.role === 'admin' ? state.adminProfile.password : state.user.password;
+            if (oldPass !== currentPass) return alert('Password lama salah!');
+            if (newPass !== confirmPass) return alert('Konfirmasi password baru tidak cocok!');
+            if (newPass.length < 6) return alert('Password minimal 6 karakter!');
+
+            const updateData = () => {
+                const avatarData = document.getElementById('settings-avatar-preview').src;
+                
+                if (state.user.role === 'admin') {
+                    state.adminProfile.password = newPass;
+                    state.adminProfile.avatar = avatarData.startsWith('data:') ? avatarData : state.adminProfile.avatar;
+                    state.user.password = newPass;
+                    state.user.avatar = state.adminProfile.avatar;
+                } else {
+                    const idx = state.members.findIndex(m => m.nim === state.user.nim);
+                    state.members[idx].password = newPass;
+                    state.members[idx].avatar = avatarData.startsWith('data:') ? avatarData : state.members[idx].avatar;
+                    state.user.password = newPass;
+                    state.user.avatar = state.members[idx].avatar;
+                }
+                
+                saveToLocal();
+                updateUIProfile();
+                alert('Profil berhasil diperbarui!');
+                closeModal('settings-modal');
+            };
+
+            updateData();
+        };
+
+        function updateUIProfile() {
+            document.getElementById('user-avatar').src = state.user.avatar || `https://ui-avatars.com/api/?name=${state.user.nama}&background=660708&color=fff`;
+        }
+
+        // --- FITUR EDIT & HAPUS DATA MASUK ---
+        function deleteAttendance(nim, date) {
+            if(confirm(`Hapus permanen data absen NIM ${nim} pada tanggal ${date}?`)) {
+                state.attendance = state.attendance.filter(a => !(a.nim === nim && a.date === date));
+                saveToLocal();
+                renderAttendance();
+                renderReports();
+                updateStats();
+            }
+        }
+
+        function editAttendance(nim, date) {
+            const record = state.attendance.find(a => a.nim === nim && a.date === date);
+            if(!record) return;
+            document.getElementById('edit-original-nim').value = nim;
+            document.getElementById('edit-original-date').value = date;
+            document.getElementById('edit-nama').value = record.nama;
+            const toLocal = (iso) => iso ? new Date(new Date(iso).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '';
+            document.getElementById('edit-checkin').value = toLocal(record.checkIn);
+            document.getElementById('edit-checkout').value = toLocal(record.checkOut);
+            document.getElementById('edit-note').value = record.note || '';
+            openModal('attendance-edit-modal');
+        }
+
+        document.getElementById('attendance-edit-form').onsubmit = (e) => {
+            e.preventDefault();
+            const nim = document.getElementById('edit-original-nim').value;
+            const date = document.getElementById('edit-original-date').value;
+            const idx = state.attendance.findIndex(a => a.nim === nim && a.date === date);
+            if(idx === -1) return;
+            state.attendance[idx].checkIn = new Date(document.getElementById('edit-checkin').value).toISOString();
+            const co = document.getElementById('edit-checkout').value;
+            state.attendance[idx].checkOut = co ? new Date(co).toISOString() : null;
+            state.attendance[idx].note = document.getElementById('edit-note').value;
+            state.attendance[idx].date = new Date(state.attendance[idx].checkIn).toLocaleDateString('en-CA');
+            saveToLocal();
+            closeModal('attendance-edit-modal');
+            renderAttendance();
+            renderReports();
+            updateStats();
+        };
+
+        // --- LOGIKA LOGIN ---
+        document.getElementById('login-form').onsubmit = (e) => {
+            e.preventDefault();
+            const nim = document.getElementById('login-nim').value;
+            const pass = document.getElementById('login-password').value;
+
+            if (state.activeRole === 'admin') {
+                if (pass === state.adminProfile.password) loginSuccess({ nama: 'Administrator', role: 'admin', avatar: state.adminProfile.avatar });
+                else alert('Password Admin Salah!');
+            } else {
+                const member = state.members.find(m => m.nim === nim);
+                if (member && (member.password || 'member123') === pass) loginSuccess({ ...member, role: 'member' });
+                else alert('ID atau Password Salah!');
+            }
+        };
+
+        function loginSuccess(userData) {
+            state.user = userData;
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            document.getElementById('user-name').textContent = userData.nama;
+            document.getElementById('user-role-label').textContent = userData.role.toUpperCase();
+            updateUIProfile();
+
+            if(userData.role === 'admin') {
+                document.getElementById('admin-menu').classList.remove('hidden');
+                document.getElementById('member-menu').classList.add('hidden');
+                showPage('admin-dashboard');
+            } else {
+                document.getElementById('admin-menu').classList.add('hidden');
+                document.getElementById('member-menu').classList.remove('hidden');
+                showPage('member-absen');
+            }
+        }
+
+        function logout() { location.reload(); }
+
+        // --- KELOLA ANGGOTA ---
+        document.getElementById('member-form').onsubmit = (e) => {
+            e.preventDefault();
+            const nim = document.getElementById('m-nim').value;
+            const nama = document.getElementById('m-nama').value;
+            const dept = document.getElementById('m-dept').value;
+            const jabatan = document.getElementById('m-jabatan').value;
+            if (state.members.some(m => m.nim === nim)) return alert('ID/NIM sudah terdaftar!');
+            state.members.push({ nim, nama, dept, jabatan, password: 'member123', avatar: null });
+            saveToLocal();
+            renderMemberList();
+            closeModal('member-modal');
+            e.target.reset();
+        };
+
+        function renderMemberList() {
+            const tbody = document.getElementById('member-table-body');
+            tbody.innerHTML = '';
+            state.members.forEach((m) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${m.nim}</td><td><b>${m.nama}</b></td><td>${m.dept}</td><td>${m.jabatan}</td><td><button onclick="deleteMember('${m.nim}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteMember(nim) {
+            if (confirm('Hapus anggota ini?')) {
+                state.members = state.members.filter(m => m.nim !== nim);
+                saveToLocal();
+                renderMemberList();
+            }
+        }
+
+        // --- ABSENSI MEMBER ---
+        function handleAbsen(type) {
+            const photoInput = document.getElementById('absen-photo');
+            const noteInput = document.getElementById('absen-note');
+            const photo = photoInput.files[0];
+            if (type === 'IN' && !photo) return alert('Bukti selfie diperlukan!');
+            const today = new Date().toLocaleDateString('en-CA');
+            const now = new Date().toISOString();
+            let record = state.attendance.find(a => a.nim === state.user.nim && a.date === today);
+
+            if (type === 'IN') {
+                if (record) return alert('Anda sudah Check In!');
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    state.attendance.push({
+                        nim: state.user.nim, nama: state.user.nama, dept: state.user.dept || 'General',
+                        date: today, checkIn: now, checkOut: null, photo: e.target.result, note: noteInput.value || '-'
+                    });
+                    saveToLocal();
+                    alert('Check In Berhasil!');
+                    photoInput.value = ''; noteInput.value = '';
+                    showPage('member-history');
+                };
+                reader.readAsDataURL(photo);
+            } else {
+                if (!record) return alert('Check In dahulu.');
+                if (record.checkOut) return alert('Sudah Check Out.');
+                record.checkOut = now;
+                saveToLocal();
+                alert('Check Out Berhasil!');
+                showPage('member-history');
+            }
+        }
+
+        // --- FILTER & RENDER ADMIN ---
+        function resetFilters() {
+            document.getElementById('attendance-filter-date').value = '';
+            document.getElementById('attendance-filter-dept').value = '';
+            renderAttendance();
+        }
+
+        function updateDepartmentDropdown() {
+            const deptSelect = document.getElementById('attendance-filter-dept');
+            if(!deptSelect) return;
+            const currentVal = deptSelect.value;
+            const depts = [...new Set(state.members.map(m => m.dept))].filter(Boolean).sort();
+            deptSelect.innerHTML = '<option value="">Semua Departemen</option>';
+            depts.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d; opt.textContent = d;
+                deptSelect.appendChild(opt);
+            });
+            deptSelect.value = currentVal;
+        }
+
+        function renderAttendance() {
+            const tbody = document.getElementById('attendance-table-body');
+            const filterDate = document.getElementById('attendance-filter-date').value;
+            const filterDept = document.getElementById('attendance-filter-dept').value;
+            tbody.innerHTML = '';
+            let data = [...state.attendance].reverse();
+            if (filterDate) data = data.filter(a => a.date === filterDate);
+            if (filterDept) data = data.filter(a => a.dept === filterDept);
+            if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:40px; color:#999;">Tidak ada data.</td></tr>`; return; }
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><img src="${item.photo}" class="img-preview" onclick="openLightbox('${item.photo}')"></td>
+                    <td><b>${item.nama}</b></td>
+                    <td>${item.nim}</td><td>${item.dept}</td>
+                    <td>${new Date(item.checkIn).toLocaleTimeString('en-GB')}</td>
+                    <td>${item.checkOut ? new Date(item.checkOut).toLocaleTimeString('en-GB') : '-'}</td>
+                    <td><span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'SELESAI' : 'AKTIF'}</span></td>
+                    <td style="max-width:150px; font-size:0.75rem;">${item.note || '-'}</td>
+                    <td>
+                        <button onclick="editAttendance('${item.nim}', '${item.date}')" class="btn-action btn-edit"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderReports() {
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '';
+            [...state.attendance].reverse().forEach(item => {
+                const tr = document.createElement('tr');
+                const outDate = item.checkOut ? new Date(item.checkOut) : null;
+                const diffMs = outDate ? outDate - new Date(item.checkIn) : 0;
+                const durationText = outDate ? `${Math.floor(diffMs / 3600000)}j ${Math.floor((diffMs % 3600000) / 60000)}m` : '-';
+                tr.innerHTML = `<td>${item.nim}</td><td><b>${item.nama}</b></td><td>${item.dept}</td><td>${new Date(item.checkIn).toLocaleTimeString('en-GB')}</td><td>${outDate ? outDate.toLocaleTimeString('en-GB') : '-'}</td><td>${durationText}</td><td><span class="badge ${outDate ? 'badge-success' : 'badge-danger'}">${outDate ? 'HADIR' : 'AKTIF'}</span></td><td>${outDate ? '100' : '0'}%</td><td><button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderMemberHistory() {
+            const container = document.getElementById('history-list');
+            const myData = state.attendance.filter(a => a.nim === state.user.nim).reverse();
+            if (myData.length === 0) { container.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">Tidak ada riwayat.</div>'; return; }
+            container.innerHTML = myData.map(item => `
+                <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div><p style="font-weight:bold;">${new Date(item.date).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p><p style="font-size:0.75rem;">In: ${new Date(item.checkIn).toLocaleTimeString('en-GB')}</p></div>
+                    <span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'Selesai' : 'Aktif'}</span>
+                </div>`).join('');
+        }
+
+        function openLightbox(src) { document.getElementById('modal-img-full').src = src; openModal('photo-modal'); }
+        function updateStats() {
+            document.getElementById('stat-members').textContent = state.members.length;
+            const today = new Date().toLocaleDateString('en-CA');
+            document.getElementById('stat-today').textContent = state.attendance.filter(a => a.date === today).length;
+        }
+        function exportExcel() {
+            const table = document.getElementById("table-to-export");
+            if(state.attendance.length === 0) return alert('Tidak ada data!');
+            const clone = table.cloneNode(true);
+            clone.querySelectorAll('tr').forEach(row => row.removeChild(row.lastElementChild));
+            const wb = XLSX.utils.table_to_book(clone, { sheet: "Absensi" });
+            XLSX.writeFile(wb, `MegaPutih_Laporan.xlsx`);
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            if(document.getElementById('live-clock')) document.getElementById('live-clock').textContent = now.toLocaleTimeString('en-GB');
+            if(document.getElementById('live-date')) document.getElementById('live-date').textContent = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }, 1000);
+    </script>
+</body>
+</html>
