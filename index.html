@@ -233,7 +233,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                     <div>
                         <h2>Ringkasan Laporan Absensi</h2>
-                        <p style="font-size:0.85rem; color:var(--text-muted);">Versi ringkas untuk arsip dan ekspor.</p>
+                        <p style="font-size:0.85rem; color:var(--text-muted);">Status ditentukan oleh durasi kerja (Tepat >= 2 jam).</p>
                     </div>
                     <button onclick="exportExcel()" style="padding:8px 16px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;"><i class="fas fa-file-excel"></i> Ekspor ke Excel</button>
                 </div>
@@ -480,7 +480,7 @@
             }
         }
 
-        // --- FITUR SETTINGS (Ganti Password & Avatar) ---
+        // Settings
         function openSettings() {
             const currentAvatar = state.user.role === 'admin' ? state.adminProfile.avatar : state.user.avatar;
             document.getElementById('settings-avatar-preview').src = currentAvatar || `https://ui-avatars.com/api/?name=${state.user.nama}&background=660708&color=fff`;
@@ -503,46 +503,29 @@
             const oldPass = document.getElementById('set-old-pass').value;
             const newPass = document.getElementById('set-new-pass').value;
             const confirmPass = document.getElementById('set-confirm-pass').value;
-            const avatarInput = document.getElementById('settings-avatar-input');
-
-            // Validasi Password
             const currentPass = state.user.role === 'admin' ? state.adminProfile.password : state.user.password;
+            
             if (oldPass !== currentPass) return alert('Password lama salah!');
-            if (newPass !== confirmPass) return alert('Konfirmasi password baru tidak cocok!');
-            if (newPass.length < 6) return alert('Password minimal 6 karakter!');
-
-            const updateData = () => {
-                const avatarData = document.getElementById('settings-avatar-preview').src;
-                
-                if (state.user.role === 'admin') {
-                    state.adminProfile.password = newPass;
-                    state.adminProfile.avatar = avatarData.startsWith('data:') ? avatarData : state.adminProfile.avatar;
-                    state.user.password = newPass;
-                    state.user.avatar = state.adminProfile.avatar;
-                } else {
-                    const idx = state.members.findIndex(m => m.nim === state.user.nim);
-                    state.members[idx].password = newPass;
-                    state.members[idx].avatar = avatarData.startsWith('data:') ? avatarData : state.members[idx].avatar;
-                    state.user.password = newPass;
-                    state.user.avatar = state.members[idx].avatar;
-                }
-                
-                saveToLocal();
-                updateUIProfile();
-                alert('Profil berhasil diperbarui!');
-                closeModal('settings-modal');
-            };
-
-            updateData();
+            if (newPass !== confirmPass) return alert('Konfirmasi password tidak cocok!');
+            
+            const avatarData = document.getElementById('settings-avatar-preview').src;
+            if (state.user.role === 'admin') {
+                state.adminProfile.password = newPass;
+                state.adminProfile.avatar = avatarData.startsWith('data:') ? avatarData : state.adminProfile.avatar;
+            } else {
+                const idx = state.members.findIndex(m => m.nim === state.user.nim);
+                state.members[idx].password = newPass;
+                state.members[idx].avatar = avatarData.startsWith('data:') ? avatarData : state.members[idx].avatar;
+            }
+            saveToLocal();
+            alert('Berhasil diperbarui!');
+            closeModal('settings-modal');
+            location.reload();
         };
 
-        function updateUIProfile() {
-            document.getElementById('user-avatar').src = state.user.avatar || `https://ui-avatars.com/api/?name=${state.user.nama}&background=660708&color=fff`;
-        }
-
-        // --- FITUR EDIT & HAPUS DATA MASUK ---
+        // Edit/Hapus Attendance
         function deleteAttendance(nim, date) {
-            if(confirm(`Hapus permanen data absen NIM ${nim} pada tanggal ${date}?`)) {
+            if(confirm(`Hapus data NIM ${nim} pada ${date}?`)) {
                 state.attendance = state.attendance.filter(a => !(a.nim === nim && a.date === date));
                 saveToLocal();
                 renderAttendance();
@@ -582,12 +565,11 @@
             updateStats();
         };
 
-        // --- LOGIKA LOGIN ---
+        // Login
         document.getElementById('login-form').onsubmit = (e) => {
             e.preventDefault();
             const nim = document.getElementById('login-nim').value;
             const pass = document.getElementById('login-password').value;
-
             if (state.activeRole === 'admin') {
                 if (pass === state.adminProfile.password) loginSuccess({ nama: 'Administrator', role: 'admin', avatar: state.adminProfile.avatar });
                 else alert('Password Admin Salah!');
@@ -604,8 +586,7 @@
             document.getElementById('app-container').classList.remove('hidden');
             document.getElementById('user-name').textContent = userData.nama;
             document.getElementById('user-role-label').textContent = userData.role.toUpperCase();
-            updateUIProfile();
-
+            document.getElementById('user-avatar').src = userData.avatar || `https://ui-avatars.com/api/?name=${userData.nama}&background=660708&color=fff`;
             if(userData.role === 'admin') {
                 document.getElementById('admin-menu').classList.remove('hidden');
                 document.getElementById('member-menu').classList.add('hidden');
@@ -619,94 +600,59 @@
 
         function logout() { location.reload(); }
 
-        // --- KELOLA ANGGOTA ---
+        // Member Management
         document.getElementById('member-form').onsubmit = (e) => {
             e.preventDefault();
             const nim = document.getElementById('m-nim').value;
             const nama = document.getElementById('m-nama').value;
             const dept = document.getElementById('m-dept').value;
             const jabatan = document.getElementById('m-jabatan').value;
-            if (state.members.some(m => m.nim === nim)) return alert('ID/NIM sudah terdaftar!');
+            if (state.members.some(m => m.nim === nim)) return alert('ID sudah terdaftar!');
             state.members.push({ nim, nama, dept, jabatan, password: 'member123', avatar: null });
-            saveToLocal();
-            renderMemberList();
-            closeModal('member-modal');
-            e.target.reset();
+            saveToLocal(); renderMemberList(); closeModal('member-modal'); e.target.reset();
         };
 
         function renderMemberList() {
             const tbody = document.getElementById('member-table-body');
             tbody.innerHTML = '';
-            state.members.forEach((m) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${m.nim}</td><td><b>${m.nama}</b></td><td>${m.dept}</td><td>${m.jabatan}</td><td><button onclick="deleteMember('${m.nim}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td>`;
-                tbody.appendChild(tr);
+            state.members.forEach(m => {
+                tbody.innerHTML += `<tr><td>${m.nim}</td><td><b>${m.nama}</b></td><td>${m.dept}</td><td>${m.jabatan}</td><td><button onclick="deleteMember('${m.nim}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td></tr>`;
             });
         }
 
-        function deleteMember(nim) {
-            if (confirm('Hapus anggota ini?')) {
-                state.members = state.members.filter(m => m.nim !== nim);
-                saveToLocal();
-                renderMemberList();
-            }
-        }
+        function deleteMember(nim) { if(confirm('Hapus anggota?')) { state.members = state.members.filter(m => m.nim !== nim); saveToLocal(); renderMemberList(); } }
 
-        // --- ABSENSI MEMBER ---
+        // Absensi
         function handleAbsen(type) {
             const photoInput = document.getElementById('absen-photo');
             const noteInput = document.getElementById('absen-note');
-            const photo = photoInput.files[0];
-            if (type === 'IN' && !photo) return alert('Bukti selfie diperlukan!');
             const today = new Date().toLocaleDateString('en-CA');
             const now = new Date().toISOString();
             let record = state.attendance.find(a => a.nim === state.user.nim && a.date === today);
 
             if (type === 'IN') {
-                if (record) return alert('Anda sudah Check In!');
+                if (record) return alert('Sudah Check In!');
+                if (!photoInput.files[0]) return alert('Selfie diperlukan!');
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     state.attendance.push({
                         nim: state.user.nim, nama: state.user.nama, dept: state.user.dept || 'General',
                         date: today, checkIn: now, checkOut: null, photo: e.target.result, note: noteInput.value || '-'
                     });
-                    saveToLocal();
-                    alert('Check In Berhasil!');
-                    photoInput.value = ''; noteInput.value = '';
-                    showPage('member-history');
+                    saveToLocal(); alert('Berhasil Check In!');
+                    photoInput.value = ''; noteInput.value = ''; showPage('member-history');
                 };
-                reader.readAsDataURL(photo);
+                reader.readAsDataURL(photoInput.files[0]);
             } else {
                 if (!record) return alert('Check In dahulu.');
                 if (record.checkOut) return alert('Sudah Check Out.');
                 record.checkOut = now;
-                saveToLocal();
-                alert('Check Out Berhasil!');
+                saveToLocal(); alert('Berhasil Check Out!');
                 showPage('member-history');
             }
         }
 
-        // --- FILTER & RENDER ADMIN ---
-        function resetFilters() {
-            document.getElementById('attendance-filter-date').value = '';
-            document.getElementById('attendance-filter-dept').value = '';
-            renderAttendance();
-        }
-
-        function updateDepartmentDropdown() {
-            const deptSelect = document.getElementById('attendance-filter-dept');
-            if(!deptSelect) return;
-            const currentVal = deptSelect.value;
-            const depts = [...new Set(state.members.map(m => m.dept))].filter(Boolean).sort();
-            deptSelect.innerHTML = '<option value="">Semua Departemen</option>';
-            depts.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d; opt.textContent = d;
-                deptSelect.appendChild(opt);
-            });
-            deptSelect.value = currentVal;
-        }
-
+        // --- RENDER LOGIC WITH STATUS TEPAT/KURANG ---
         function renderAttendance() {
             const tbody = document.getElementById('attendance-table-body');
             const filterDate = document.getElementById('attendance-filter-date').value;
@@ -715,22 +661,22 @@
             let data = [...state.attendance].reverse();
             if (filterDate) data = data.filter(a => a.date === filterDate);
             if (filterDept) data = data.filter(a => a.dept === filterDept);
-            if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:40px; color:#999;">Tidak ada data.</td></tr>`; return; }
+            
             data.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><img src="${item.photo}" class="img-preview" onclick="openLightbox('${item.photo}')"></td>
-                    <td><b>${item.nama}</b></td>
-                    <td>${item.nim}</td><td>${item.dept}</td>
-                    <td>${new Date(item.checkIn).toLocaleTimeString('en-GB')}</td>
-                    <td>${item.checkOut ? new Date(item.checkOut).toLocaleTimeString('en-GB') : '-'}</td>
-                    <td><span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'SELESAI' : 'AKTIF'}</span></td>
-                    <td style="max-width:150px; font-size:0.75rem;">${item.note || '-'}</td>
-                    <td>
-                        <button onclick="editAttendance('${item.nim}', '${item.date}')" class="btn-action btn-edit"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button>
-                    </td>`;
-                tbody.appendChild(tr);
+                tbody.innerHTML += `
+                    <tr>
+                        <td><img src="${item.photo}" class="img-preview" onclick="openLightbox('${item.photo}')"></td>
+                        <td><b>${item.nama}</b></td>
+                        <td>${item.nim}</td><td>${item.dept}</td>
+                        <td>${new Date(item.checkIn).toLocaleTimeString('en-GB')}</td>
+                        <td>${item.checkOut ? new Date(item.checkOut).toLocaleTimeString('en-GB') : '-'}</td>
+                        <td><span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'SELESAI' : 'AKTIF'}</span></td>
+                        <td style="font-size:0.75rem;">${item.note || '-'}</td>
+                        <td>
+                            <button onclick="editAttendance('${item.nim}', '${item.date}')" class="btn-action btn-edit"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`;
             });
         }
 
@@ -738,23 +684,56 @@
             const tbody = document.getElementById('report-table-body');
             tbody.innerHTML = '';
             [...state.attendance].reverse().forEach(item => {
-                const tr = document.createElement('tr');
-                const outDate = item.checkOut ? new Date(item.checkOut) : null;
-                const diffMs = outDate ? outDate - new Date(item.checkIn) : 0;
-                const durationText = outDate ? `${Math.floor(diffMs / 3600000)}j ${Math.floor((diffMs % 3600000) / 60000)}m` : '-';
-                tr.innerHTML = `<td>${item.nim}</td><td><b>${item.nama}</b></td><td>${item.dept}</td><td>${new Date(item.checkIn).toLocaleTimeString('en-GB')}</td><td>${outDate ? outDate.toLocaleTimeString('en-GB') : '-'}</td><td>${durationText}</td><td><span class="badge ${outDate ? 'badge-success' : 'badge-danger'}">${outDate ? 'HADIR' : 'AKTIF'}</span></td><td>${outDate ? '100' : '0'}%</td><td><button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td>`;
-                tbody.appendChild(tr);
+                const checkInDate = new Date(item.checkIn);
+                const checkOutDate = item.checkOut ? new Date(item.checkOut) : null;
+                
+                let durationText = '-';
+                let status = 'AKTIF';
+                let score = '0';
+                let badgeClass = 'badge-danger';
+
+                if (checkOutDate) {
+                    const diffMs = checkOutDate - checkInDate;
+                    const diffMinutes = Math.floor(diffMs / 60000);
+                    const hours = Math.floor(diffMinutes / 60);
+                    const mins = diffMinutes % 60;
+                    durationText = `${hours}j ${mins}m`;
+
+                    // LOGIKA: TEPAT jika >= 2 jam (120 menit)
+                    if (diffMinutes >= 120) {
+                        status = 'TEPAT';
+                        score = '100';
+                        badgeClass = 'badge-success';
+                    } else {
+                        status = 'KURANG';
+                        score = '50';
+                        badgeClass = 'badge-warning';
+                    }
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.nim}</td>
+                        <td><b>${item.nama}</b></td>
+                        <td>${item.dept}</td>
+                        <td>${checkInDate.toLocaleTimeString('en-GB')}</td>
+                        <td>${checkOutDate ? checkOutDate.toLocaleTimeString('en-GB') : '-'}</td>
+                        <td>${durationText}</td>
+                        <td><span class="badge ${badgeClass}">${status}</span></td>
+                        <td style="font-weight:bold;">${score}%</td>
+                        <td><button onclick="deleteAttendance('${item.nim}', '${item.date}')" class="btn-action btn-delete"><i class="fas fa-trash"></i></button></td>
+                    </tr>`;
             });
         }
 
         function renderMemberHistory() {
-            const container = document.getElementById('history-list');
-            const myData = state.attendance.filter(a => a.nim === state.user.nim).reverse();
-            if (myData.length === 0) { container.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">Tidak ada riwayat.</div>'; return; }
-            container.innerHTML = myData.map(item => `
+            const list = document.getElementById('history-list');
+            const data = state.attendance.filter(a => a.nim === state.user.nim).reverse();
+            if(!data.length) return list.innerHTML = '<p style="text-align:center; padding:20px;">Belum ada data.</p>';
+            list.innerHTML = data.map(i => `
                 <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                    <div><p style="font-weight:bold;">${new Date(item.date).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p><p style="font-size:0.75rem;">In: ${new Date(item.checkIn).toLocaleTimeString('en-GB')}</p></div>
-                    <span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'Selesai' : 'Aktif'}</span>
+                    <div><b>${new Date(i.date).toLocaleDateString('id-ID')}</b><br><small>In: ${new Date(i.checkIn).toLocaleTimeString('en-GB')}</small></div>
+                    <span class="badge ${i.checkOut ? 'badge-success' : 'badge-danger'}">${i.checkOut ? 'Selesai' : 'Aktif'}</span>
                 </div>`).join('');
         }
 
@@ -764,13 +743,16 @@
             const today = new Date().toLocaleDateString('en-CA');
             document.getElementById('stat-today').textContent = state.attendance.filter(a => a.date === today).length;
         }
+        function updateDepartmentDropdown() {
+            const s = document.getElementById('attendance-filter-dept');
+            if(!s) return;
+            const depts = [...new Set(state.members.map(m => m.dept))].filter(Boolean).sort();
+            s.innerHTML = '<option value="">Semua Departemen</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+        }
         function exportExcel() {
             const table = document.getElementById("table-to-export");
-            if(state.attendance.length === 0) return alert('Tidak ada data!');
-            const clone = table.cloneNode(true);
-            clone.querySelectorAll('tr').forEach(row => row.removeChild(row.lastElementChild));
-            const wb = XLSX.utils.table_to_book(clone, { sheet: "Absensi" });
-            XLSX.writeFile(wb, `MegaPutih_Laporan.xlsx`);
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Laporan" });
+            XLSX.writeFile(wb, "MegaPutih_Report.xlsx");
         }
 
         setInterval(() => {
