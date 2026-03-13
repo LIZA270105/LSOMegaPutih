@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MegaPutih - Digital Attendance System</title>
+    
+    <!-- Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #0B090A;
+            --secondary: #660708;
+            --bg-body: #F5F5F5;
+            --surface: #FFFFFF;
+            --text-main: #2d3436;
+            --text-muted: #636e72;
+            --accent: #D3D3D3;
+            --radius: 12px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.08);
+            --transition: 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); min-height: 100vh; width: 100%; overflow-x: hidden; }
+        .hidden { display: none !important; }
+
+        /* Login Page */
+        #login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 20px;
+        }
+
+        /* Main Layout */
+        #app-container { display: flex; min-height: 100vh; }
+        #sidebar {
+            width: 260px; background: var(--primary); color: white;
+            position: fixed; height: 100vh; z-index: 1000;
+            transition: transform var(--transition); display: flex; flex-direction: column;
+        }
+        #main-content { flex: 1; margin-left: 260px; padding: 2rem; width: calc(100% - 260px); }
+
+        /* UI Elements */
+        .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .mobile-nav { display: none; background: var(--primary); color: white; padding: 12px 16px; position: sticky; top: 0; z-index: 900; justify-content: space-between; align-items: center; }
+        
+        .menu-item { padding: 12px 16px; color: rgba(255,255,255,0.7); cursor: pointer; display: flex; align-items: center; gap: 12px; border-radius: 8px; margin: 4px 12px; transition: 0.2s; }
+        .menu-item.active { background: rgba(255,255,255,0.1); color: white; border-left: 4px solid var(--secondary); }
+
+        /* Table Styles */
+        .table-container { overflow-x: auto; width: 100%; margin-top: 15px; border-radius: 8px; border: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; vertical-align: middle; }
+        
+        /* Badges & Images */
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+        .badge-success { background: #e6fffa; color: #2c7a7b; }
+        .badge-danger { background: #fff5f5; color: #c53030; }
+        .badge-warning { background: #fffaf0; color: #b7791f; }
+        .img-preview { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 2px solid #ddd; background: #eee; display: block; }
+
+        /* Modal */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: white; border-radius: 12px; width: 100%; max-width: 450px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+            #main-content { margin-left: 0; width: 100%; padding: 1rem; }
+            .mobile-nav { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; display:none;" onclick="toggleSidebar()"></div>
+
+    <!-- Login Page -->
+    <section id="login-page">
+        <div class="card" style="width:100%; max-width:400px; text-align:center;">
+            <i class="fas fa-fingerprint" style="font-size:3rem; color:var(--secondary); margin-bottom:1rem;"></i>
+            <h2 style="margin-bottom:20px;">MegaPutih Attendance</h2>
+            
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <button id="btn-role-member" class="role-btn" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; cursor:pointer;" onclick="setRole('member')">Member</button>
+                <button id="btn-role-admin" class="role-btn" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:8px; cursor:pointer;" onclick="setRole('admin')">Admin</button>
+            </div>
+
+            <form id="login-form">
+                <div id="login-nim-group" style="text-align:left; margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; font-weight:700;">ID / NIM</label>
+                    <input type="text" id="login-nim" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; margin-top:5px;">
+                </div>
+                <div style="text-align:left; margin-bottom:1.5rem;">
+                    <label style="font-size:0.8rem; font-weight:700;">Password</label>
+                    <input type="password" id="login-password" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; margin-top:5px;" required>
+                </div>
+                <button type="submit" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">SIGN IN</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- App Container -->
+    <div id="app-container" class="hidden">
+        <header class="mobile-nav">
+            <span style="font-weight:800;">MEGAPUTIH</span>
+            <i class="fas fa-bars" onclick="toggleSidebar()"></i>
+        </header>
+
+        <aside id="sidebar">
+            <div style="padding:1.5rem; font-weight:800; border-bottom:1px solid rgba(255,255,255,0.1);">LSO MEGAPUTIH</div>
+            <div style="padding:1.5rem; display:flex; align-items:center; gap:12px;">
+                <img id="user-avatar" src="" style="width:40px; height:40px; border-radius:50%; background:#fff; object-fit:cover;">
+                <div>
+                    <p id="user-name" style="font-weight:700; font-size:0.9rem;">Username</p>
+                    <p id="user-role-label" style="font-size:0.7rem; opacity:0.6;">Role</p>
+                </div>
+            </div>
+            <nav style="flex:1;">
+                <div id="admin-menu" class="hidden">
+                    <div class="menu-item" onclick="showPage('admin-dashboard')"><i class="fas fa-home"></i> Dashboard</div>
+                    <div class="menu-item" onclick="showPage('admin-attendance')"><i class="fas fa-calendar-check"></i> Attendance Logs</div>
+                    <div class="menu-item" onclick="showPage('admin-reports')"><i class="fas fa-file-invoice"></i> Brief Reports</div>
+                    <div class="menu-item" onclick="showPage('admin-members')"><i class="fas fa-users"></i> Manage Members</div>
+                </div>
+                <div id="member-menu" class="hidden">
+                    <div class="menu-item" onclick="showPage('member-absen')"><i class="fas fa-clock"></i> Check In/Out</div>
+                    <div class="menu-item" onclick="showPage('member-history')"><i class="fas fa-history"></i> My Records</div>
+                </div>
+            </nav>
+            <div class="menu-item" onclick="logout()" style="margin-bottom:2rem; color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Logout</div>
+        </aside>
+
+        <main id="main-content">
+            <!-- Admin Dashboard -->
+            <div id="page-admin-dashboard" class="page hidden">
+                <h2 style="margin-bottom:20px;">Organization Statistics</h2>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px;">
+                    <div class="card" style="text-align:center;">
+                        <p style="color:var(--text-muted);">Total Members</p>
+                        <h1 id="stat-members">0</h1>
+                    </div>
+                    <div class="card" style="text-align:center;">
+                        <p style="color:var(--text-muted);">Present Today</p>
+                        <h1 id="stat-today" style="color:green;">0</h1>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Detailed Attendance -->
+            <div id="page-admin-attendance" class="page hidden">
+                <div style="margin-bottom:20px;">
+                    <h2>Detailed Attendance Data</h2>
+                    <p style="font-size:0.85rem; color:var(--text-muted);">Includes Photo Evidence and Member Notes.</p>
+                </div>
+                <div class="card">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                        <label style="font-size:0.8rem; font-weight:bold;">Filter Date:</label>
+                        <input type="date" id="attendance-filter-date" style="padding:8px; border:1px solid #ddd; border-radius:6px;" onchange="renderAttendance()">
+                        <button onclick="resetDateFilter()" style="padding:8px 12px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:0.8rem;">Show All</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Photo Evidence</th>
+                                    <th>Name</th>
+                                    <th>ID/NIM</th>
+                                    <th>Department</th>
+                                    <th>Position</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Status</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Reports -->
+            <div id="page-admin-reports" class="page hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <div>
+                        <h2>Attendance Report Summary</h2>
+                        <p style="font-size:0.85rem; color:var(--text-muted);">Simplified version for archives and export.</p>
+                    </div>
+                    <button onclick="exportExcel()" style="padding:8px 16px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;"><i class="fas fa-file-excel"></i> Export to Excel</button>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table id="table-to-export">
+                            <thead>
+                                <tr>
+                                    <th>ID/NIM</th>
+                                    <th>Name</th>
+                                    <th>Department</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                    <th>Score (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manage Members -->
+            <div id="page-admin-members" class="page hidden">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2>Active Member List</h2>
+                    <button onclick="openModal('member-modal')" style="padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer;">+ Add Member</button>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID/NIM</th>
+                                    <th>Name</th>
+                                    <th>Department</th>
+                                    <th>Position</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="member-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Member Check-In -->
+            <div id="page-member-absen" class="page hidden">
+                <div class="card" style="max-width:400px; margin:0 auto; text-align:center;">
+                    <h2 id="live-clock" style="font-size:2.5rem; margin-bottom:5px;">00:00:00</h2>
+                    <p id="live-date" style="color:var(--text-muted); margin-bottom:30px;"></p>
+                    
+                    <div style="text-align:left; margin-bottom:1rem;">
+                        <label style="font-weight:700; font-size:0.85rem;">Capture Evidence (Selfie)</label>
+                        <input type="file" id="absen-photo" style="width:100%; margin-top:5px;" capture="user" accept="image/*">
+                    </div>
+
+                    <div style="text-align:left; margin-bottom:1.5rem;">
+                        <label style="font-weight:700; font-size:0.85rem;">Notes (Optional)</label>
+                        <textarea id="absen-note" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-top:5px; height:60px;" placeholder="What are you working on today?"></textarea>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <button onclick="handleAbsen('IN')" style="padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">CHECK IN</button>
+                        <button onclick="handleAbsen('OUT')" style="padding:12px; background:var(--secondary); color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">CHECK OUT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Member History -->
+            <div id="page-member-history" class="page hidden">
+                <h2>My Attendance Records</h2>
+                <div class="card" id="history-container">
+                    <div id="history-list">Loading records...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div id="member-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px;">New Member Registration</h3>
+            <form id="member-form">
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">ID / NIM</label>
+                    <input type="text" id="m-nim" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Full Name</label>
+                    <input type="text" id="m-nama" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Department</label>
+                    <input type="text" id="m-dept" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;" placeholder="e.g. Media, IT, HR" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-size:0.8rem; font-weight:700;">Position</label>
+                    <input type="text" id="m-jabatan" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;" placeholder="e.g. Staff, Lead" required>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeModal('member-modal')" style="flex:1; padding:10px; background:#eee; border:none; border-radius:6px; cursor:pointer;">Cancel</button>
+                    <button type="submit" style="flex:1; padding:10px; background:var(--primary); color:white; border:none; border-radius:6px; cursor:pointer;">Save Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Photo Lightbox -->
+    <div id="photo-modal" class="modal-backdrop" onclick="closeModal('photo-modal')">
+        <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+            <img id="modal-img-full" src="" style="max-width:90%; max-height:85%; border-radius:8px; border:5px solid white; box-shadow:0 0 50px rgba(0,0,0,0.5);">
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        let state = {
+            activeRole: 'member',
+            user: null,
+            members: JSON.parse(localStorage.getItem('mp_members')) || [
+                { nim: '12345', nama: 'Budi Santoso', dept: 'IT Support', jabatan: 'Lead', password: 'member123' },
+                { nim: '67890', nama: 'Siti Aminah', dept: 'Secretariat', jabatan: 'Secretary', password: 'member123' }
+            ],
+            attendance: JSON.parse(localStorage.getItem('mp_attendance')) || []
+        };
+
+        window.onload = () => {
+            const today = new Date().toLocaleDateString('en-CA');
+            const filterInput = document.getElementById('attendance-filter-date');
+            if(filterInput) filterInput.value = today;
+        };
+
+        const saveToLocal = () => {
+            localStorage.setItem('mp_members', JSON.stringify(state.members));
+            localStorage.setItem('mp_attendance', JSON.stringify(state.attendance));
+        };
+
+        // UI Helpers
+        function setRole(role) {
+            state.activeRole = role;
+            document.querySelectorAll('.role-btn').forEach(b => b.style.background = '#fff');
+            document.getElementById('btn-role-' + role).style.background = '#f0f0f0';
+            document.getElementById('login-nim-group').style.display = role === 'admin' ? 'none' : 'block';
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const isOpen = sidebar.classList.toggle('open');
+            overlay.style.display = isOpen ? 'block' : 'none';
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById('page-' + pageId).classList.remove('hidden');
+            
+            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            const activeMenu = Array.from(document.querySelectorAll('.menu-item')).find(m => m.getAttribute('onclick')?.includes(pageId));
+            if(activeMenu) activeMenu.classList.add('active');
+
+            if(pageId === 'admin-attendance') renderAttendance();
+            if(pageId === 'admin-reports') renderReports();
+            if(pageId === 'admin-members') renderMemberList();
+            if(pageId === 'admin-dashboard') updateStats();
+            if(pageId === 'member-history') renderMemberHistory();
+            
+            if(window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                if(sidebar.classList.contains('open')) toggleSidebar();
+            }
+        }
+
+        // Login Logic
+        document.getElementById('login-form').onsubmit = (e) => {
+            e.preventDefault();
+            const nim = document.getElementById('login-nim').value;
+            const pass = document.getElementById('login-password').value;
+
+            if (state.activeRole === 'admin') {
+                if (pass === 'admin123') loginSuccess({ nama: 'Administrator', role: 'admin' });
+                else alert('Invalid Admin Password!');
+            } else {
+                const member = state.members.find(m => m.nim === nim);
+                if (member && (member.password || 'member123') === pass) loginSuccess({ ...member, role: 'member' });
+                else alert('Invalid ID or Password!');
+            }
+        };
+
+        function loginSuccess(userData) {
+            state.user = userData;
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            
+            document.getElementById('user-name').textContent = userData.nama;
+            document.getElementById('user-role-label').textContent = userData.role.toUpperCase();
+            document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${userData.nama}&background=660708&color=fff`;
+
+            if(userData.role === 'admin') {
+                document.getElementById('admin-menu').classList.remove('hidden');
+                document.getElementById('member-menu').classList.add('hidden');
+                showPage('admin-dashboard');
+            } else {
+                document.getElementById('admin-menu').classList.add('hidden');
+                document.getElementById('member-menu').classList.remove('hidden');
+                showPage('member-absen');
+            }
+        }
+
+        function logout() { location.reload(); }
+
+        // Member Management
+        document.getElementById('member-form').onsubmit = (e) => {
+            e.preventDefault();
+            const nim = document.getElementById('m-nim').value;
+            const nama = document.getElementById('m-nama').value;
+            const dept = document.getElementById('m-dept').value;
+            const jabatan = document.getElementById('m-jabatan').value;
+
+            if (state.members.some(m => m.nim === nim)) return alert('ID/NIM already registered!');
+
+            state.members.push({ nim, nama, dept, jabatan, password: 'member123' });
+            saveToLocal();
+            renderMemberList();
+            closeModal('member-modal');
+            e.target.reset();
+        };
+
+        function renderMemberList() {
+            const tbody = document.getElementById('member-table-body');
+            tbody.innerHTML = '';
+            state.members.forEach((m) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${m.nim}</td>
+                    <td><b>${m.nama}</b></td>
+                    <td>${m.dept}</td>
+                    <td>${m.jabatan}</td>
+                    <td>
+                        <button onclick="deleteMember('${m.nim}')" style="background:none; border:none; color:red; cursor:pointer;"><i class="fas fa-trash"></i> Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteMember(nim) {
+            if (confirm('Delete this member?')) {
+                state.members = state.members.filter(m => m.nim !== nim);
+                saveToLocal();
+                renderMemberList();
+            }
+        }
+
+        // Attendance Logic
+        function handleAbsen(type) {
+            const photoInput = document.getElementById('absen-photo');
+            const noteInput = document.getElementById('absen-note');
+            const photo = photoInput.files[0];
+            
+            if (type === 'IN' && !photo) return alert('Selfie proof is required to Check In!');
+
+            const today = new Date().toLocaleDateString('en-CA');
+            const now = new Date().toISOString();
+            
+            let record = state.attendance.find(a => a.nim === state.user.nim && a.date === today);
+
+            if (type === 'IN') {
+                if (record) return alert('You have already Checked In today.');
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    state.attendance.push({
+                        nim: state.user.nim,
+                        nama: state.user.nama,
+                        dept: state.user.dept || 'General',
+                        jabatan: state.user.jabatan || 'Member',
+                        date: today,
+                        checkIn: now,
+                        checkOut: null,
+                        photo: e.target.result,
+                        note: noteInput.value || '-'
+                    });
+                    saveToLocal();
+                    alert('Check In Successful!');
+                    photoInput.value = '';
+                    noteInput.value = '';
+                    showPage('member-history');
+                };
+                reader.readAsDataURL(photo);
+            } else {
+                if (!record) return alert('Please Check In first.');
+                if (record.checkOut) return alert('You have already Checked Out today.');
+                record.checkOut = now;
+                saveToLocal();
+                alert('Check Out Successful!');
+                showPage('member-history');
+            }
+        }
+
+        function resetDateFilter() {
+            document.getElementById('attendance-filter-date').value = '';
+            renderAttendance();
+        }
+
+        // Render Attendance Table
+        function renderAttendance() {
+            const tbody = document.getElementById('attendance-table-body');
+            const filterDate = document.getElementById('attendance-filter-date').value;
+            tbody.innerHTML = '';
+
+            let data = [...state.attendance].reverse();
+            if (filterDate) {
+                data = data.filter(a => a.date === filterDate);
+            }
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:40px; color:#999;">
+                    <i class="fas fa-folder-open" style="font-size:2rem; display:block; margin-bottom:10px;"></i>
+                    No attendance records found ${filterDate ? 'for this date' : 'yet'}.
+                </td></tr>`;
+                return;
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                const checkInTime = new Date(item.checkIn).toLocaleTimeString('en-GB');
+                const checkOutTime = item.checkOut ? new Date(item.checkOut).toLocaleTimeString('en-GB') : '-';
+                
+                tr.innerHTML = `
+                    <td><img src="${item.photo}" class="img-preview" onclick="openLightbox('${item.photo}')"></td>
+                    <td><b>${item.nama}</b></td>
+                    <td>${item.nim}</td>
+                    <td>${item.dept}</td>
+                    <td>${item.jabatan}</td>
+                    <td>${checkInTime}</td>
+                    <td>${checkOutTime}</td>
+                    <td><span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">${item.checkOut ? 'COMPLETED' : 'ACTIVE'}</span></td>
+                    <td style="max-width:200px; white-space: normal; word-break: break-word; font-size:0.75rem;">${item.note || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Render Reports Logic
+        function renderReports() {
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '';
+
+            let data = [...state.attendance].reverse();
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">No data available for reports.</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                const inDate = new Date(item.checkIn);
+                const outDate = item.checkOut ? new Date(item.checkOut) : null;
+                
+                const checkInTime = inDate.toLocaleTimeString('en-GB');
+                const checkOutTime = outDate ? outDate.toLocaleTimeString('en-GB') : '-';
+                
+                let durationText = '-';
+                let statusText = 'ACTIVE';
+                let points = '0';
+                let badgeClass = 'badge-danger';
+
+                if (outDate) {
+                    const diffMs = outDate - inDate;
+                    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    durationText = `${diffHrs}h ${diffMins}m`;
+
+                    // Logic: 2 hours = 7.200.000 ms
+                    if (diffMs >= 7200000) {
+                        statusText = 'ON TIME';
+                        points = '100';
+                        badgeClass = 'badge-success';
+                    } else {
+                        statusText = 'PARTIAL';
+                        points = '50';
+                        badgeClass = 'badge-warning';
+                    }
+                }
+
+                tr.innerHTML = `
+                    <td>${item.nim}</td>
+                    <td><b>${item.nama}</b></td>
+                    <td>${item.dept}</td>
+                    <td>${checkInTime}</td>
+                    <td>${checkOutTime}</td>
+                    <td>${durationText}</td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
+                    <td>${points}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderMemberHistory() {
+            const container = document.getElementById('history-list');
+            const myData = state.attendance.filter(a => a.nim === state.user.nim).reverse();
+            
+            if (myData.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No history records found.</div>';
+                return;
+            }
+
+            container.innerHTML = myData.map(item => `
+                <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <p style="font-weight:bold;">${new Date(item.date).toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'})}</p>
+                        <p style="font-size:0.75rem; color:#666;">In: ${new Date(item.checkIn).toLocaleTimeString('en-GB')}</p>
+                        ${item.checkOut ? `<p style="font-size:0.75rem; color:#666;">Out: ${new Date(item.checkOut).toLocaleTimeString('en-GB')}</p>` : ''}
+                    </div>
+                    <span class="badge ${item.checkOut ? 'badge-success' : 'badge-danger'}">
+                        ${item.checkOut ? 'Finished' : 'In Progress'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function openLightbox(src) {
+            document.getElementById('modal-img-full').src = src;
+            openModal('photo-modal');
+        }
+
+        function updateStats() {
+            document.getElementById('stat-members').textContent = state.members.length;
+            const today = new Date().toLocaleDateString('en-CA');
+            document.getElementById('stat-today').textContent = state.attendance.filter(a => a.date === today).length;
+        }
+
+        function exportExcel() {
+            const table = document.getElementById("table-to-export");
+            if(state.attendance.length === 0) return alert('No data to export!');
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Attendance Summary" });
+            XLSX.writeFile(wb, `MegaPutih_Attendance_Report_${new Date().toLocaleDateString()}.xlsx`);
+        }
+
+        // Live Clock
+        setInterval(() => {
+            const now = new Date();
+            const clockEl = document.getElementById('live-clock');
+            const dateEl = document.getElementById('live-date');
+            if(clockEl) clockEl.textContent = now.toLocaleTimeString('en-GB');
+            if(dateEl) dateEl.textContent = now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }, 1000);
+
+    </script>
+</body>
+</html>
